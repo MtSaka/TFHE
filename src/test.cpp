@@ -6,7 +6,7 @@
 #include <iostream>
 
 template <typename Parameter>
-void test_tlwe(unsigned int seed, const SecretKeyTLWElvl0<Parameter>& s) {
+void test_tlwe(unsigned int seed, const SecretKey<Parameter>& s) {
     std::default_random_engine rng{seed};
     {
         std::binomial_distribution<> dist;
@@ -18,7 +18,7 @@ void test_tlwe(unsigned int seed, const SecretKeyTLWElvl0<Parameter>& s) {
     }
 }
 template <typename Parameter>
-void test_trlwe(unsigned int seed, const SecretKeyTRLWE<Parameter>& s) {
+void test_trlwe(unsigned int seed, const SecretKey<Parameter>& s) {
     std::default_random_engine rng{seed};
     {
         std::binomial_distribution<> dist;
@@ -34,7 +34,7 @@ void test_trlwe(unsigned int seed, const SecretKeyTRLWE<Parameter>& s) {
     }
 }
 template <typename Parameter>
-void test_external_product(unsigned int seed, const SecretKeyTRLWE<Parameter>& s) {
+void test_external_product(unsigned int seed, const SecretKey<Parameter>& s) {
     std::default_random_engine rng{seed};
     {
         std::binomial_distribution<> dist;
@@ -61,7 +61,7 @@ void test_external_product(unsigned int seed, const SecretKeyTRLWE<Parameter>& s
 }
 
 template <typename Parameter>
-void test_cmux(unsigned int seed, const SecretKeyTRLWE<Parameter>& s) {
+void test_cmux(unsigned int seed, const SecretKey<Parameter>& s) {
     std::default_random_engine rng{seed};
     {
         std::binomial_distribution<> dist;
@@ -87,11 +87,11 @@ int main() {
     const int n = 12, m = 4;
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
-        SecretKeyTLWElvl0<P> key;
+        SecretKey<P> key;
         {
             unsigned int seed = std::random_device{}();
             std::default_random_engine rng{seed};
-            key = SecretKeyTLWElvl0<P>{rng};
+            key = SecretKey<P>{rng};
         }
         for (int j = 0; j < m; ++j) {
             unsigned int seed = std::random_device{}();
@@ -100,11 +100,11 @@ int main() {
     }
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
-        SecretKeyTRLWE<P> key;
+        SecretKey<P> key;
         {
             unsigned seed = std::random_device{}();
             std::default_random_engine rng{seed};
-            key = SecretKeyTRLWE<P>{rng};
+            key = SecretKey<P>{rng};
         }
         for (int j = 0; j < m; ++j) {
             unsigned int seed = std::random_device{}();
@@ -114,11 +114,11 @@ int main() {
 
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
-        SecretKeyTRLWE<P> key;
+        SecretKey<P> key;
         {
             unsigned seed = std::random_device{}();
             std::default_random_engine rng{seed};
-            key = SecretKeyTRLWE<P>{rng};
+            key = SecretKey<P>{rng};
         }
         for (int j = 0; j < m; ++j) {
             unsigned int seed = std::random_device{}();
@@ -127,11 +127,11 @@ int main() {
     }
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
-        SecretKeyTRLWE<P> key;
+        SecretKey<P> key;
         {
             unsigned seed = std::random_device{}();
             std::default_random_engine rng{seed};
-            key = SecretKeyTRLWE<P>{rng};
+            key = SecretKey<P>{rng};
         }
         for (int j = 0; j < m; ++j) {
             unsigned int seed = std::random_device{}();

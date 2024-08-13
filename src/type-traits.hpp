@@ -37,6 +37,7 @@ struct uint_least {
 template <typename T>
 using signed_type_t = int_least_t<std::numeric_limits<T>::digits>;
 
+using Torus16 = uint16_t;
 using Torus = uint32_t;
 
 template <typename G>

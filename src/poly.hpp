@@ -45,7 +45,7 @@ struct Poly : std::array<T, sz> {
             for (std::size_t i = 0; i < sz - k; ++i) {
                 res[i + k] = (*this)[i];
             }
-            for (std::size_t i = sz - k; ++i) {
+            for (std::size_t i = sz - k; i < sz; ++i) {
                 res[i + k - sz] = -(*this)[i];
             }
         } else {

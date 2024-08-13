@@ -7,25 +7,6 @@
 #include <iostream>
 
 template <class Parameter>
-struct SecretKeyTRLWE {
-   private:
-    std::array<Poly<int, Parameter::N>, Parameter::k> s;
-
-   public:
-    SecretKeyTRLWE() {}
-    SecretKeyTRLWE(const SecretKeyTRLWE& key) : s(key.s) {}
-    template <RandGen Gen>
-    SecretKeyTRLWE(Gen& gen) {
-        std::binomial_distribution<int> dist;
-        for (auto& e1 : s) {
-            for (auto& e2 : e1) e2 = dist(gen);
-        }
-    }
-    Poly<int, Parameter::N>& operator[](std::size_t i) { return s[i]; }
-    Poly<int, Parameter::N> operator[](std::size_t i) const { return s[i]; }
-};
-
-template <class Parameter>
 struct TRLWE {
    public:
     static constexpr uint32_t N() noexcept { return Parameter::N; }
@@ -49,7 +30,7 @@ struct TRLWE {
     Torus b(std::size_t i) const noexcept { return (*this)[0][i]; }
 
     template <RandGen Gen>
-    static TRLWE encrypt(const SecretKeyTRLWE<Parameter>& s, const Poly<Torus, N()>& m, Gen& rng) {
+    static TRLWE encrypt(const SecretKey<Parameter>& s, const Poly<Torus, N()>& m, Gen& rng) {
         TRLWE trlwe;
         for (std::size_t i = 0; i < k(); ++i) {
             for (std::size_t j = 0; j < N(); ++j) {
@@ -57,16 +38,16 @@ struct TRLWE {
             }
         }
         for (std::size_t i = 0; i < N(); ++i) {
-            trlwe.b(i) = m[i]+normal_torus_gen(alpha_bk(), rng);
+            trlwe.b(i) = m[i] + normal_torus_gen(alpha_bk(), rng);
         }
         for (std::size_t i = 0; i < k(); ++i) {
-            trlwe.b() += trlwe.a(i) * s[i];
+            trlwe.b() += trlwe.a(i) * s.get_lvl1(i);
         }
 
         return trlwe;
     }
     template <RandGen Gen>
-    static TRLWE encrypt(const SecretKeyTRLWE<Parameter>& s, Poly<bool, N()> m, Gen& rng) {
+    static TRLWE encrypt(const SecretKey<Parameter>& s, Poly<bool, N()> m, Gen& rng) {
         static constexpr Torus mu = 1 << (std::numeric_limits<Torus>::digits - 3);
         Poly<Torus, N()> t;
         for (std::size_t i = 0; i < N(); ++i) {
@@ -75,18 +56,18 @@ struct TRLWE {
         return encrypt(s, t, rng);
     }
     template <RandGen Gen>
-    static TRLWE encrypt_zero(const SecretKeyTRLWE<Parameter>& s, Gen& rng) {
+    static TRLWE encrypt_zero(const SecretKey<Parameter>& s, Gen& rng) {
         Poly<Torus, N()> m = {};
         return encrypt(s, m, rng);
     }
-    Poly<Torus, N()> decrypt_poly_torus(const SecretKeyTRLWE<Parameter>& s) const {
+    Poly<Torus, N()> decrypt_poly_torus(const SecretKey<Parameter>& s) const {
         Poly<Torus, N()> m = b();
         for (std::size_t i = 0; i < k(); ++i) {
-            m -= a(i) * s[i];
+            m -= a(i) * s.get_lvl1(i);
         }
         return m;
     }
-    Poly<bool, N()> decrypt_poly_bool(const SecretKeyTRLWE<Parameter>& s) const {
+    Poly<bool, N()> decrypt_poly_bool(const SecretKey<Parameter>& s) const {
         Poly<Torus, N()> t = decrypt_poly_torus(s);
         Poly<bool, N()> m;
         for (std::size_t i = 0; i < N(); ++i) {

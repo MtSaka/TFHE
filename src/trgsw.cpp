@@ -20,7 +20,7 @@ struct TRGSW {
     const TRLWE<Parameter>& operator[](std::size_t i) const { return data[i]; }
 
     template <RandGen Gen>
-    static TRGSW encrypt(const SecretKeyTRLWE<Parameter>& s, const Poly<int, N()>& mu, Gen& rng) {
+    static TRGSW encrypt(const SecretKey<Parameter>& s, const Poly<int, N()>& mu, Gen& rng) {
         static constexpr uint32_t bit_width = std::numeric_limits<Torus>::digits;
         TRGSW trgsw = {};
         for (auto& trlwe : trgsw.data) trlwe = TRLWE<Parameter>::encrypt_zero(s, rng);
@@ -38,27 +38,16 @@ struct TRGSW {
                 trgsw[k() * l() + i].b(j) += t;
             }
         }
-        /*
-        for (std::size_t i = 0; i < (k() + 1) * l(); ++i) {
-            for (std::size_t j = 0; j < k(); ++j) {
-                std::cout << "TRGSW A " << i << " " << j << " ";
-                for (std::size_t k = 0; k < N(); ++k) {
-                    std::cout << trgsw[i].a(j, k) << " \n"[k == N() - 1];
-                }
-            }
-            std::cout << "TRGSW B " << i << " " << j << " ";
-            for (std::size_t j = 0;j<)
-        }*/
         return trgsw;
     }
     template <RandGen Gen>
-    static TRGSW encrypt(const SecretKeyTRLWE<Parameter>& s, const bool& mu, Gen& rng) {
+    static TRGSW encrypt(const SecretKey<Parameter>& s, const bool& mu, Gen& rng) {
         Poly<int, N()> t = {};
         t[0] = mu ? 1 : 0;
         return encrypt(s, t, rng);
     }
     template <RandGen Gen>
-    static TRGSW encrypt(const SecretKeyTRLWE<Parameter>& s, const int& mu, Gen& rng) {
+    static TRGSW encrypt(const SecretKey<Parameter>& s, const int& mu, Gen& rng) {
         Poly<int, N()> t = {};
         t[0] = mu;
         return encrypt(s, t, rng);
@@ -69,14 +58,10 @@ template <class Parameter>
 std::array<Poly<int, Parameter::N>, Parameter::l> decompose(const Poly<Torus, Parameter::N>& a) {
     static constexpr uint32_t bit_width = std::numeric_limits<int>::digits;
     int round_offset = 1 << (bit_width - Parameter::l * Parameter::Bgbit - 1);
-    std::array<Poly<int, Parameter::N>, Parameter::l> a_bar;
-    for (std::size_t i = 0; i < Parameter::l; ++i) {
-        for (std::size_t j = 0; j < Parameter::N; ++j) {
-            a_bar[i][j] = ((a[j] + round_offset) >> (bit_width - Parameter::Bgbit * (i + 1))) & (Parameter::Bg - 1);
-        }
-    }
+    std::array<Poly<int, Parameter::N>, Parameter::l> a_bar = {};
     for (int i = Parameter::l - 1; i >= 0; --i) {
         for (std::size_t j = 0; j < Parameter::N; ++j) {
+            a_bar[i][j] += ((a[j] + round_offset) >> (bit_width - Parameter::Bgbit * (i + 1))) & (Parameter::Bg - 1);
             if (a_bar[i][j] >= Parameter::Bg / 2) {
                 a_bar[i][j] -= Parameter::Bg;
                 if (i > 0) a_bar[i - 1][j]++;
