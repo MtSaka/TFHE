@@ -1,0 +1,8 @@
+# Base style is Google
+BasedOnStyle: Google
+IndentWidth: 4
+Language: Cpp
+DerivePointerAlignment: false
+PointerAlignment: Left
+ColumnLimit: 0
+SortIncludes: false
