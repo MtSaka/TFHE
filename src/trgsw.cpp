@@ -55,10 +55,10 @@ struct TRGSW {
 };
 
 template <class Parameter>
-std::array<Poly<int, Parameter::N>, Parameter::l> decompose(const Poly<Torus, Parameter::N>& a) {
+void decompose(std::array<Poly<int, Parameter::N>, Parameter::l>& a_bar, const Poly<Torus, Parameter::N>& a) {
     static constexpr uint32_t bit_width = 32;  // std::numeric_limits<int>::digits;
     static constexpr int round_offset = 1 << (bit_width - Parameter::l * Parameter::Bgbit - 1);
-    std::array<Poly<int, Parameter::N>, Parameter::l> a_bar = {};
+    a_bar = {};
     for (int i = Parameter::l - 1; i >= 0; --i) {
         for (std::size_t j = 0; j < Parameter::N; ++j) {
             a_bar[i][j] += ((a[j] + round_offset) >> (bit_width - Parameter::Bgbit * (i + 1))) & (Parameter::Bg - 1);
@@ -68,19 +68,27 @@ std::array<Poly<int, Parameter::N>, Parameter::l> decompose(const Poly<Torus, Pa
             }
         }
     }
-    return a_bar;
 }
 
 template <class Parameter>
-TRLWE<Parameter> external_product(const TRGSW<Parameter>& trgsw, const TRLWE<Parameter>& trlwe) {
-    std::array<std::array<Poly<int, Parameter::N>, Parameter::l>, Parameter::k> dec_a;
-    std::array<Poly<int, Parameter::N>, Parameter::l> dec_b;
+void external_product(TRLWE<Parameter>& res, const TRGSW<Parameter>& trgsw, const TRLWE<Parameter>& trlwe) {
+    std::array<std::array<std::array<ModInt, Parameter::N << 1>, Parameter::l>, Parameter::k> dec_a;
+    std::array<std::array<ModInt, Parameter::N << 1>, Parameter::l> dec_b;
     for (std::size_t i = 0; i < Parameter::k; ++i) {
-        dec_a[i] = decompose<Parameter>(trlwe.a(i));
+        std::array<Poly<int, Parameter::N>, Parameter::l> dec_a_tmp;
+        decompose<Parameter>(dec_a_tmp, trlwe.a(i));
+        for (std::size_t j = 0; j < Parameter::l; ++j) {
+            dec_a_tmp[j].transform(dec_a[i][j]);
+        }
     }
-    dec_b = decompose<Parameter>(trlwe.b());
+    {
+        std::array<Poly<int, Parameter::N>, Parameter::l> dec_b_tmp;
+        decompose<Parameter>(dec_b_tmp, trlwe.b());
+        for (std::size_t j = 0; j < Parameter::l; ++j) {
+            dec_b_tmp[j].transform(dec_b[j]);
+        }
+    }
 
-    TRLWE<Parameter> res;
     for (std::size_t i = 0; i < Parameter::k; ++i) {
         res.a(i) = {};
     }
@@ -101,12 +109,11 @@ TRLWE<Parameter> external_product(const TRGSW<Parameter>& trgsw, const TRLWE<Par
         res.b() += trgsw[Parameter::k * Parameter::l + i].b() * dec_b[i];
     }
 
-    return res;
 }
 
 template <class Parameter>
-TRLWE<Parameter> cmux(const TRGSW<Parameter>& cond, const TRLWE<Parameter>& thn, const TRLWE<Parameter>& els) {
+void cmux(TRLWE<Parameter>& res, const TRGSW<Parameter>& cond, const TRLWE<Parameter>& thn, const TRLWE<Parameter>& els) {
     const TRLWE<Parameter>&trlwe0 = els, trlwe1 = thn;
-    TRLWE<Parameter> res = external_product(cond, trlwe1 - trlwe0) + trlwe0;
-    return res;
+    external_product(res, cond, trlwe1 - trlwe0);
+    res += trlwe0;
 }

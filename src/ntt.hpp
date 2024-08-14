@@ -1,8 +1,6 @@
 #pragma once
 #include "type-traits.hpp"
-#include <iostream>
 #include <cassert>
-#include <bitset>
 namespace modint_impl {
 using T = uint64_t;
 
@@ -21,13 +19,27 @@ static constexpr T reduce(large_t x) {
 static constexpr T transform(large_t x) { return reduce(x * r2); }
 }  // namespace modint_impl
 
-inline constexpr uint16_t reverse(uint16_t x) {
-    x = ((x & 0x5555) << 1) | ((x & 0xaaaa) >> 1);
-    x = ((x & 0x3333) << 2) | ((x & 0xcccc) >> 2);
-    x = ((x & 0x0f0f) << 4) | ((x & 0xf0f0) >> 4);
-    return (x << 8) | (x >> 8);
-}
-inline constexpr uint16_t reverse(uint16_t x, int len) { return reverse(x) >> (16 - len); }
+struct BitReversal {
+   private:
+    static constexpr int lg = 10;
+    std::array<uint16_t, 1 << 10> reversed;
+    inline constexpr uint16_t reverse(uint16_t x) {
+        x = ((x & 0x5555) << 1) | ((x & 0xaaaa) >> 1);
+        x = ((x & 0x3333) << 2) | ((x & 0xcccc) >> 2);
+        x = ((x & 0x0f0f) << 4) | ((x & 0xf0f0) >> 4);
+        return (x << 8) | (x >> 8);
+    }
+    inline constexpr uint16_t reverse(uint16_t x, int len) { return reverse(x) >> (16 - len); }
+
+   public:
+    constexpr BitReversal() : reversed({}) {
+        for (uint16_t i = 0; i < (1 << 10); ++i) {
+            reversed[i] = reverse(i, lg);
+        }
+    }
+    constexpr uint16_t get(uint16_t i) const { return reversed[i]; }
+};
+constexpr BitReversal bit_reversal;
 
 struct ModInt {
     using T = uint64_t;
@@ -125,8 +137,41 @@ constexpr NthRoot nth_root;
 template <std::size_t sz>
 void ntt(std::array<ModInt, sz>& a) {
     static constexpr int lg = 10;
+
+    static constexpr ModInt im = nth_root.get(2);
+    for (std::size_t i = lg; i >= 1; i -= 2) {
+        if (i == 1) {
+            const ModInt w = nth_root.get(i);
+            for (std::size_t j = 0; j < sz; j += (1u << 1)) {
+                ModInt z = 1;
+                for (std::size_t k = j; k < j + (1u << (i - 1)); ++k) {
+                    const ModInt x = a[k], y = a[k + (1u << (i - 1))];
+                    a[k] = x + y, a[k + (1u << (i - 1))] = (x - y) * z;
+                    z *= w;
+                }
+            }
+        } else {
+            const ModInt w = nth_root.get(i);
+            const std::size_t offset = 1 << (i - 2);
+            for (std::size_t j = 0; j < sz; j += (1u << i)) {
+                ModInt z = 1;
+                for (std::size_t k = j; k < j + (1u << (i - 2)); ++k) {
+                    const ModInt z2 = z * z, z3 = z2 * z;
+                    const ModInt c0 = a[k], c1 = a[k + offset], c2 = a[k + offset * 2], c3 = a[k + offset * 3];
+                    const ModInt c0c2 = c0 + c2, c0mc2 = c0 - c2, c1c3 = c1 + c3, c1mc3im = (c1 - c3) * im;
+                    a[k] = c0c2 + c1c3;
+                    a[k + offset] = (c0c2 - c1c3) * z2;
+                    a[k + offset * 2] = (c0mc2 + c1mc3im) * z;
+                    a[k + offset * 3] = (c0mc2 - c1mc3im) * z3;
+                    z *= w;
+                }
+            }
+        }
+    }
+
+    /*
     for (uint16_t i = 0; i < sz; ++i) {
-        const int j = reverse(i, lg);
+        const uint16_t j = bit_reversal.get(i);
         if (i < j) std::swap(a[i], a[j]);
     }
     for (std::size_t i = 0; i < lg; ++i) {
@@ -139,13 +184,15 @@ void ntt(std::array<ModInt, sz>& a) {
                 z *= w;
             }
         }
-    }
+    }*/
 }
-template <std::size_t sz>
-void intt(std::array<ModInt, sz>& a, const bool& f = true) {
+template <std::size_t sz, bool f = true>
+void intt(std::array<ModInt, sz>& a) {
     static constexpr int lg = 10;
+
+    /*
     for (uint16_t i = 0; i < sz; ++i) {
-        const uint16_t j = reverse(i, lg);
+        const uint16_t j = bit_reversal.get(i);
         if (i < j) std::swap(a[i], a[j]);
     }
     for (std::size_t i = 0; i < lg; ++i) {
@@ -158,8 +205,38 @@ void intt(std::array<ModInt, sz>& a, const bool& f = true) {
                 z *= w;
             }
         }
+    }*/
+    static constexpr ModInt im = nth_root.inv(2);
+    for (std::size_t i = 2 - (lg & 1); i <= lg; i += 2) {
+        if (i == 1) {
+            const ModInt w = nth_root.inv(i);
+            for (std::size_t j = 0; j < sz; j += (1u << i)) {
+                ModInt z = 1;
+                for (std::size_t k = j; k < j + (1u << (i - 1)); ++k) {
+                    const ModInt x = a[k], y = a[k + (1u << (i - 1))] * z;
+                    a[k] = x + y, a[k + (1u << (i - 1))] = x - y;
+                    z *= w;
+                }
+            }
+        } else {
+            const ModInt w = nth_root.inv(i);
+            const std::size_t offset = 1 << (i - 2);
+            for (std::size_t j = 0; j < sz; j += (1u << i)) {
+                ModInt z = 1;
+                for (std::size_t k = j; k < j + (1u << (i - 2)); ++k) {
+                    const ModInt z2 = z * z, z3 = z2 * z;
+                    const ModInt c0 = a[k], c1 = a[k + offset] * z2, c2 = a[k + offset * 2] * z, c3 = a[k + offset * 3] * z3;
+                    const ModInt c0c1 = c0 + c1, c0mc1 = c0 - c1, c2c3 = c2 + c3, c2mc3im = (c2 - c3) * im;
+                    a[k] = c0c1 + c2c3;
+                    a[k + offset] = c0mc1 + c2mc3im;
+                    a[k + offset * 2] = c0c1 - c2c3;
+                    a[k + offset * 3] = c0mc1 - c2mc3im;
+                    z *= w;
+                }
+            }
+        }
     }
-    if (f) {
+    if constexpr (f) {
         constexpr ModInt inv_sz = ModInt(1) / sz;
         for (auto& x : a) x *= inv_sz;
     }

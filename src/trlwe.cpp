@@ -41,7 +41,7 @@ struct TRLWE {
             trlwe.b(i) = m[i] + normal_torus_gen(alpha_bk(), rng);
         }
         for (std::size_t i = 0; i < k(); ++i) {
-            trlwe.b() += trlwe.a(i) * s.get_lvl1(i);
+            trlwe.b() += trlwe.a(i) * s.get_transformed_lvl1(i);
         }
 
         return trlwe;
@@ -69,7 +69,7 @@ struct TRLWE {
     Poly<Torus, N()> decrypt_poly_torus(const SecretKey<Parameter>& s) const {
         Poly<Torus, N()> m = b();
         for (std::size_t i = 0; i < k(); ++i) {
-            m -= a(i) * s.get_lvl1(i);
+            m -= a(i) * s.get_transformed_lvl1(i);
         }
         return m;
     }
@@ -81,10 +81,8 @@ struct TRLWE {
         }
         return m;
     }
-    TRLWE shift(std::size_t j) const {
-        TRLWE res;
-        for (std::size_t i = 0; i < k() + 1; ++i) res[i] = data[i].mult_pow_x_k(j);
-        return res;
+    void shift(TRLWE& res, std::size_t j) const {
+        for (std::size_t i = 0; i < k() + 1; ++i) data[i].mult_pow_x_k(res[i], j);
     }
     TRLWE& operator+=(const TRLWE& rhs) {
         for (std::size_t i = 0; i < k() + 1; ++i) {
@@ -107,8 +105,7 @@ struct TRLWE {
 };
 
 template <class Parameter>
-TLWElvl1<Parameter> sample_extract_index(const TRLWE<Parameter>& trlwe, std::size_t index) {
-    TLWElvl1<Parameter> tlwe;
+void sample_extract_index(TLWElvl1<Parameter>& tlwe, const TRLWE<Parameter>& trlwe, std::size_t index) {
     tlwe.b() = trlwe.b(index);
     for (std::size_t j = 0; j < Parameter::k; ++j) {
         for (std::size_t i = 0; i <= index; ++i) {
@@ -118,5 +115,4 @@ TLWElvl1<Parameter> sample_extract_index(const TRLWE<Parameter>& trlwe, std::siz
             tlwe.a(j, i) = -trlwe.a(j, Parameter::N + index - i);
         }
     }
-    return tlwe;
 }

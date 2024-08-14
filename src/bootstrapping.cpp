@@ -2,6 +2,8 @@
 
 #include "trgsw.cpp"
 
+#include <memory>
+
 template <class Parameter>
 struct BootstrappingKey {
    private:
@@ -16,22 +18,28 @@ struct BootstrappingKey {
             data[i] = TRGSW<Parameter>::encrypt(s, (bool)s.get_lvl0(i), rng);
         }
     }
+    template <RandGen Gen>
+    static std::shared_ptr<BootstrappingKey> make_ptr(const SecretKey<Parameter>& s, Gen& rng) {
+        return std::make_shared<BootstrappingKey>(s, rng);
+    }
     const TRGSW<Parameter>& operator[](std::size_t i) const noexcept {
         return data[i];
     }
 };
 
 template <class Parameter>
-TRLWE<Parameter> blind_rotate(const TLWElvl0<Parameter>& tlwe, const BootstrappingKey<Parameter>& bk, const TRLWE<Parameter>& testvec) {
+void blind_rotate(TRLWE<Parameter>& trlwe, const TLWElvl0<Parameter>& tlwe, const BootstrappingKey<Parameter>& bk, const TRLWE<Parameter>& testvec) {
     static constexpr std::size_t bit_width = std::numeric_limits<Torus16>::digits;
     static constexpr std::size_t mask = (Parameter::N << 1) - 1;
     std::size_t b_tilda = (2 * Parameter::N - (tlwe.b() >> (bit_width - Parameter::Nbit - 1))) & mask;
-    TRLWE<Parameter> trlwe = testvec.shift(b_tilda);
+    testvec.shift(trlwe, b_tilda);
     for (std::size_t i = 0; i < Parameter::n; ++i) {
         std::size_t a_tilda = ((tlwe.a(i) + static_cast<Torus16>(1 << (bit_width - 2 - Parameter::Nbit))) >> (bit_width - Parameter::Nbit - 1)) & mask;
-        trlwe = cmux(bk[i], trlwe.shift(a_tilda), trlwe);
+        const TRLWE<Parameter> trlwe0 = trlwe;
+        TRLWE<Parameter> trlwe1;
+        trlwe0.shift(trlwe1, a_tilda);
+        cmux(trlwe, bk[i], trlwe1, trlwe0);
     }
-    return trlwe;
 }
 
 template <class Parameter>
@@ -44,7 +52,8 @@ constexpr TRLWE<Parameter> test_vector() {
 }
 
 template <class Parameter>
-TLWElvl1<Parameter> gate_bootstrapping_tlwe_to_tlwe(const TLWElvl0<Parameter>& tlwe, const BootstrappingKey<Parameter>& bk) {
-    TRLWE<Parameter> trlwe = blind_rotate(tlwe, bk, test_vector<Parameter>());
-    return sample_extract_index(trlwe, 0);
+void gate_bootstrapping_tlwe_to_tlwe(TLWElvl1<Parameter>& tlwe1, const TLWElvl0<Parameter>& tlwe, const BootstrappingKey<Parameter>& bk) {
+    TRLWE<Parameter> trlwe;
+    blind_rotate(trlwe, tlwe, bk, test_vector<Parameter>());
+    sample_extract_index(tlwe1, trlwe, 0);
 }

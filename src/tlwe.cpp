@@ -6,13 +6,14 @@
 #include "poly.hpp"
 
 #include <array>
-#include <assert.h>
+#include <memory>
 
 template <class Parameter>
 struct SecretKey {
    private:
     std::array<int, Parameter::n> lvl0;
     std::array<Poly<int, Parameter::N>, Parameter::k> lvl1;
+    std::array<std::array<ModInt, Parameter::N << 1>, Parameter::k> transformed_lvl1;
 
    public:
     SecretKey() {}
@@ -24,6 +25,9 @@ struct SecretKey {
         for (auto& e1 : lvl1) {
             for (auto& e2 : e1) e2 = dist(rng);
         }
+        for (std::size_t i = 0; i < Parameter::k; ++i) {
+            lvl1[i].transform(transformed_lvl1[i]);
+        }
     }
     int& get_lvl0(std::size_t i) { return lvl0[i]; }
     int get_lvl0(std::size_t i) const { return lvl0[i]; }
@@ -31,6 +35,7 @@ struct SecretKey {
     Poly<int, Parameter::N> get_lvl1(std::size_t i) const { return lvl1[i]; }
     int& get_lvl1(std::size_t i, std::size_t j) { return lvl1[i][j]; }
     int get_lvl1(std::size_t i, std::size_t j) const { return lvl1[i][j]; }
+    const std::array<ModInt, Parameter::N << 1>& get_transformed_lvl1(std::size_t i) const { return transformed_lvl1[i]; }
 };
 
 template <class Parameter>
@@ -89,10 +94,37 @@ struct TLWElvl0 {
         }
         return *this;
     }
+    TLWElvl0& operator*=(const int& rhs) {
+        for (std::size_t i = 0; i < n() + 1; ++i) {
+            (*this)[i] *= rhs;
+        }
+        return *this;
+    }
+    TLWElvl0& operator+=(const Torus16& rhs) {
+        (*this).b() += rhs;
+        return *this;
+    }
+    TLWElvl0& operator-=(const Torus16& rhs) {
+        (*this).b() -= rhs;
+        return *this;
+    }
+    TLWElvl0 operator-() const {
+        TLWElvl0 res;
+        for (std::size_t i = 0; i < n() + 1; ++i) {
+            res[i] = -(*this)[i];
+        }
+        return res;
+    }
     friend TLWElvl0 operator+(const TLWElvl0& lhs, const TLWElvl0& rhs) {
         return TLWElvl0(lhs) += rhs;
     }
     friend TLWElvl0 operator-(const TLWElvl0& lhs, const TLWElvl0& rhs) {
+        return TLWElvl0(lhs) -= rhs;
+    }
+    friend TLWElvl0 operator+(const TLWElvl0& lhs, const Torus16& rhs) {
+        return TLWElvl0(lhs) += rhs;
+    }
+    friend TLWElvl0 operator-(const TLWElvl0& lhs, const Torus16& rhs) {
         return TLWElvl0(lhs) -= rhs;
     }
 };
@@ -189,6 +221,7 @@ struct KeySwitchKey {
     TLWElvl0<Parameter> operator()(std::size_t i, std::size_t j, std::size_t k) const {
         return data[(i * Parameter::t + j) * (1 << (Parameter::basebit - 1)) + k];
     }
+    /*
     template <RandGen Gen>
     KeySwitchKey(const SecretKey<Parameter>& s, Gen& rng) {
         static constexpr std::size_t bit_width = std::numeric_limits<Torus>::digits;
@@ -200,12 +233,27 @@ struct KeySwitchKey {
                 }
             }
         }
+    }*/
+
+    template <RandGen Gen>
+    static std::shared_ptr<KeySwitchKey> make_ptr(const SecretKey<Parameter>& s, Gen& rng) {
+        auto ks = std::make_shared<KeySwitchKey>();
+        static constexpr std::size_t bit_width = std::numeric_limits<Torus>::digits;
+        for (std::size_t i = 0; i < Parameter::kN; ++i) {
+            for (std::size_t j = 0; j < Parameter::t; ++j) {
+                for (std::size_t k = 1; k <= (1 << (Parameter::basebit - 1)); ++k) {
+                    Torus t = static_cast<Torus>(k * s.get_lvl1(i / Parameter::N, i % Parameter::N) * (1u << (bit_width - (j + 1) * Parameter::basebit)));
+                    (*ks)(i, j, k - 1) = TLWElvl0<Parameter>::encrypt(s, torus_to_torus16(t), rng);
+                }
+            }
+        }
+        return ks;
     }
 };
 template <class Parameter>
-TLWElvl0<Parameter> identity_key_switch(const TLWElvl1<Parameter>& tlwe, const KeySwitchKey<Parameter>& ks) {
+void identity_key_switch(TLWElvl0<Parameter>& res, const TLWElvl1<Parameter>& tlwe, const KeySwitchKey<Parameter>& ks) {
     std::array<std::array<int, Parameter::t>, Parameter::kN> a_bar = {};
-    TLWElvl0<Parameter> res = {};
+    res = {};
     res.b() = torus_to_torus16(tlwe.b());
     static constexpr Torus round_offset = 1 << (32 - (1 + Parameter::basebit * Parameter::t));
     for (std::size_t i = 0; i < Parameter::kN; ++i) {
@@ -222,5 +270,4 @@ TLWElvl0<Parameter> identity_key_switch(const TLWElvl1<Parameter>& tlwe, const K
                 res += ks(i, j, k - 1);
         }
     }
-    return res;
 }

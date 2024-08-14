@@ -21,14 +21,27 @@ struct Poly : std::array<T, sz> {
     }
     Poly& operator*=(const Poly<int, sz>& rhs) {
         std::array<ModInt, sz << 1> a = {}, b = {};
-
         for (std::size_t i = 0; i < sz; ++i) {
             a[i] = ModInt((*this)[i]), b[i] = ModInt(rhs[i]);
         }
-        // for (std::size_t i = sz; i < (sz << 1); ++i) a[i] = ModInt(), b[i] = ModInt();
         ntt(a), ntt(b);
         for (std::size_t i = 0; i < (sz << 1); ++i) {
             a[i] *= b[i];
+        }
+        intt(a);
+        for (std::size_t i = 0; i < sz; ++i) {
+            (*this)[i] = static_cast<T>(static_cast<T>(a[i].get()) - static_cast<T>(a[i + sz].get()));
+        }
+        return *this;
+    }
+    Poly& operator*=(const std::array<ModInt, sz << 1>& rhs) {
+        std::array<ModInt, sz << 1> a = {};
+        for (std::size_t i = 0; i < sz; ++i) {
+            a[i] = ModInt((*this)[i]);
+        }
+        ntt(a);
+        for (std::size_t i = 0; i < (sz << 1); ++i) {
+            a[i] *= rhs[i];
         }
         intt(a);
         for (std::size_t i = 0; i < sz; ++i) {
@@ -45,8 +58,10 @@ struct Poly : std::array<T, sz> {
     friend Poly<T, sz> operator*(const Poly<T, sz>& lhs, const Poly<int, sz>& rhs) {
         return Poly(lhs) *= rhs;
     }
-    Poly<T, sz> mult_pow_x_k(std::size_t k) const {
-        Poly<T, sz> res;
+    friend Poly<T, sz> operator*(const Poly<T, sz>& lhs, const std::array<ModInt, sz << 1>& rhs) {
+        return Poly(lhs) *= rhs;
+    }
+    void mult_pow_x_k(Poly<T, sz>& res, std::size_t k) const {
         if (k < sz) {
             for (std::size_t i = 0; i < sz - k; ++i) {
                 res[i + k] = (*this)[i];
@@ -63,13 +78,28 @@ struct Poly : std::array<T, sz> {
                 res[i + l - sz] = (*this)[i];
             }
         }
-        return res;
     }
-    /*
-    std::array<ModInt, sz << 1> ntt() const {
+    void transform(std::array<ModInt, sz << 1>& a) const {
+        a = {};
+        for (std::size_t i = 0; i < sz; ++i) a[i] = (*this)[i];
+        ntt(a);
+        return;
+    }
+    std::array<ModInt, sz << 1> transformed() const {
         std::array<ModInt, sz << 1> a = {};
         for (std::size_t i = 0; i < sz; ++i) a[i] = (*this)[i];
         ntt(a);
         return a;
-    }*/
+    }
 };
+
+template <std::size_t sz>
+std::array<ModInt, sz> operator*(const std::array<ModInt, sz>& lhs, const std::array<ModInt, sz>& rhs) {
+    std::array<ModInt, sz> res;
+    for (std::size_t i = 0; i < sz; ++i) res[i] = lhs[i] * rhs[i];
+    return res;
+}
+template <std::size_t sz>
+void add(std::array<ModInt, sz>& lhs, const std::array<ModInt, sz>& rhs) {
+    for (std::size_t i = 0; i < sz; ++i) lhs[i] += rhs[i];
+}
