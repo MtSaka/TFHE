@@ -25,7 +25,7 @@ void test_trlwe(unsigned int seed, const SecretKey<Parameter>& s) {
     {
         std::binomial_distribution<> dist;
         Poly<bool, Parameter::N> m;
-        for (int i = 0; i < Parameter::N; ++i) m[i] = dist(rng);
+        for (std::size_t i = 0; i < Parameter::N; ++i) m[i] = dist(rng);
         TRLWE<Parameter> trlwe = TRLWE<Parameter>::encrypt(s, m, rng);
         Poly<bool, Parameter::N> m_ = trlwe.decrypt_poly_bool(s);
         for (std::size_t i = 0; i < Parameter::N; ++i) {
@@ -131,7 +131,7 @@ void test_hom_nand(unsigned int seed, const SecretKey<Parameter>& s, const Boots
 
 int main() {
     using P = param::Security128bit;
-    const int n = 4, m = 2;
+    const int n = 6, m = 4;
     /*
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
@@ -158,8 +158,8 @@ int main() {
             unsigned int seed = std::random_device{}();
             test_trlwe<P>(seed, key);
         }
-    }
-
+    }*/
+    /*
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
         SecretKey<P> key;
@@ -173,6 +173,7 @@ int main() {
             test_external_product<P>(seed, key);
         }
     }
+    /*
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
         SecretKey<P> key;
@@ -200,7 +201,8 @@ int main() {
             unsigned int seed = std::random_device{}();
             test_blind_rotate<P>(seed, key, bk);
         }
-    }*/
+    }
+
 
     /*
     for (int i = 0; i < n; ++i) {
@@ -216,6 +218,8 @@ int main() {
             test_identity_key_switch<P>(seed, key);
         }
     }*/
+
+    double sum = 0;
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
         SecretKey<P> key;
@@ -226,11 +230,20 @@ int main() {
             key = SecretKey<P>{rng};
             bk = BootstrappingKey<P>{key, rng};
         }
+        std::cerr << "finished Bootstarpping" << std::endl;
+
         for (int j = 0; j < m; ++j) {
+            clock_t start = clock();
             unsigned int seed = std::random_device{}();
             test_hom_nand<P>(seed, key, bk);
+            clock_t end = clock();
+            double t = static_cast<double>(end - start) / CLOCKS_PER_SEC * 1000.0;
+            std::cerr << t << std::endl;
+            sum += t;
         }
     }
 
+    std::cerr << sum / (n*m) << std::endl;
+    // std::cerr << msb(1024) << std::endl;
     std::cout << "PASS" << std::endl;
 }

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "type-traits.hpp"
+#include "ntt.hpp"
+
 template <typename T, std::size_t sz>
 struct Poly : std::array<T, sz> {
     using std::array<T, sz>::array;
@@ -18,16 +20,20 @@ struct Poly : std::array<T, sz> {
         return *this;
     }
     Poly& operator*=(const Poly<int, sz>& rhs) {
-        Poly<T, sz> res = {};
+        std::array<ModInt, sz << 1> a = {}, b = {};
+
         for (std::size_t i = 0; i < sz; ++i) {
-            for (std::size_t j = 0; j < sz; ++j) {
-                if (i + j < sz)
-                    res[i + j] += static_cast<T>((*this)[i] * rhs[j]);
-                else
-                    res[(i + j) - sz] -= static_cast<T>((*this)[i] * rhs[j]);
-            }
+            a[i] = ModInt((*this)[i]), b[i] = ModInt(rhs[i]);
         }
-        (*this) = res;
+        // for (std::size_t i = sz; i < (sz << 1); ++i) a[i] = ModInt(), b[i] = ModInt();
+        ntt(a), ntt(b);
+        for (std::size_t i = 0; i < (sz << 1); ++i) {
+            a[i] *= b[i];
+        }
+        intt(a);
+        for (std::size_t i = 0; i < sz; ++i) {
+            (*this)[i] = static_cast<T>(static_cast<T>(a[i].get()) - static_cast<T>(a[i + sz].get()));
+        }
         return *this;
     }
     friend Poly<T, sz> operator+(const Poly<T, sz>& lhs, const Poly<T, sz>& rhs) {
@@ -59,4 +65,11 @@ struct Poly : std::array<T, sz> {
         }
         return res;
     }
+    /*
+    std::array<ModInt, sz << 1> ntt() const {
+        std::array<ModInt, sz << 1> a = {};
+        for (std::size_t i = 0; i < sz; ++i) a[i] = (*this)[i];
+        ntt(a);
+        return a;
+    }*/
 };
