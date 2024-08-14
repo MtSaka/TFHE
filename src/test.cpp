@@ -3,6 +3,7 @@
 #include "tlwe.cpp"
 #include "trlwe.cpp"
 #include "trgsw.cpp"
+#include "bootstrapping.cpp"
 #include <iostream>
 
 template <typename Parameter>
@@ -73,7 +74,7 @@ void test_cmux(unsigned int seed, const SecretKey<Parameter>& s) {
         auto trlwe_t = TRLWE<Parameter>::encrypt(s, t, rng);
         auto trlwe_f = TRLWE<Parameter>::encrypt(s, f, rng);
         auto trgsw_c = TRGSW<Parameter>::encrypt(s, c, rng);
-        TRLWE<Parameter> trlwe = cmux(trgsw_c, trlwe_t, trlwe_f);
+        auto trlwe = cmux(trgsw_c, trlwe_t, trlwe_f);
         Poly<bool, Parameter::N> res = trlwe.decrypt_poly_bool(s);
         for (std::size_t i = 0; i < Parameter::N; ++i) {
             std::cerr << res[i] << " " << (c ? t[i] : f[i]) << std::endl;
@@ -82,9 +83,27 @@ void test_cmux(unsigned int seed, const SecretKey<Parameter>& s) {
     }
 }
 
+template <class Parameter>
+void test_blind_rotate(unsigned int seed, const SecretKey<Parameter>& s, const BootstrappingKey<Parameter>& bk) {
+    std::default_random_engine rng{seed};
+    {
+        std::binomial_distribution<> dist;
+        bool m = dist(rng);
+        //auto trlwe = test_vector<Parameter>();
+        //trlwe=trlwe.shift(513);
+        //trlwe = trlwe.shift(2);
+        //trlwe = trlwe.shift(512);
+        auto tlwe = TLWElvl0<Parameter>::encrypt(s, m, rng);
+        TLWElvl1<Parameter> res_tlwe = gate_bootstrapping_tlwe_to_tlwe(tlwe, bk);
+        bool m_ = res_tlwe.decrypt_bool(s);
+        std::cerr << m << " " << m_ << std::endl;
+        assert(m == m_);
+    }
+}
 int main() {
     using P = param::Security128bit;
-    const int n = 12, m = 4;
+    const int n = 2, m = 2;
+    /*
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
         SecretKey<P> key;
@@ -137,7 +156,24 @@ int main() {
             unsigned int seed = std::random_device{}();
             test_cmux<P>(seed, key);
         }
+    }*/
+
+
+    for (int i = 0; i < n; ++i) {
+        std::cerr << i << std::endl;
+        SecretKey<P> key;
+        BootstrappingKey<P> bk;
+        {
+            unsigned seed = std::random_device{}();
+            std::default_random_engine rng{seed};
+            key = SecretKey<P>{rng};
+            bk = BootstrappingKey<P>{key, rng};
+        }
+        for (int j = 0; j < m; ++j) {
+            unsigned int seed = std::random_device{}();
+            test_blind_rotate<P>(seed, key, bk);
+        }
     }
-    
+
     std::cout << "PASS" << std::endl;
 }

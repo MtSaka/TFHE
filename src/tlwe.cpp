@@ -78,6 +78,24 @@ struct TLWElvl0 {
     bool decrypt_bool(const SecretKey<Parameter>& s) const {
         return static_cast<signed_type_t<Torus16>>(decrypt_torus(s)) > 0;
     }
+    TLWElvl0& operator+=(const TLWElvl0& rhs) {
+        for (std::size_t i = 0; i < n() + 1; ++i) {
+            this->data[i] += rhs[i];
+        }
+        return *this;
+    }
+    TLWElvl0& operator-=(const TLWElvl0& rhs) {
+        for (std::size_t i = 0; i < n() + 1; ++i) {
+            this->data[i] -= rhs[i];
+        }
+        return *this;
+    }
+    friend TLWElvl0 operator+(const TLWElvl0& lhs, const TLWElvl0& rhs) {
+        return TLWElvl0(lhs) += rhs;
+    }
+    friend TLWElvl0 operator-(const TLWElvl0& lhs, const TLWElvl0& rhs) {
+        return TLWElvl0(lhs) -= rhs;
+    }
 };
 
 template <class Parameter>
@@ -99,7 +117,7 @@ struct TLWElvl1 {
     Torus& a(std::size_t i, std::size_t j) noexcept { return (*this)[i][j]; }
     Torus a(std::size_t i, std::size_t j) const noexcept { return (*this)[i][j]; }
     Torus& b() noexcept { return datab; }
-    Torus b(std::size_t i) const noexcept { return datab; }
+    Torus b() const noexcept { return datab; }
     template <RandGen Gen>
     static TLWElvl1 encrypt(const SecretKey<Parameter>& s, const Torus& m, Gen& rng) {
         TLWElvl1 tlwe;
@@ -133,5 +151,29 @@ struct TLWElvl1 {
     }
     bool decrypt_bool(const SecretKey<Parameter>& s) const {
         return static_cast<signed_type_t<Torus>>(decrypt_torus(s)) > 0;
+    }
+    TLWElvl1& operator+=(const TLWElvl1& rhs) {
+        for (std::size_t i = 0; i < k(); ++i) {
+            for (std::size_t j = 0; j < N(); ++j) {
+                a(i, j) += rhs.a(i, j);
+            }
+        }
+        b() += rhs.b();
+        return *this;
+    }
+    TLWElvl1& operator-=(const TLWElvl1& rhs) {
+        for (std::size_t i = 0; i < k(); ++i) {
+            for (std::size_t j = 0; j < N(); ++j) {
+                a(i, j) -= rhs.a(i, j);
+            }
+        }
+        b() -= rhs.b();
+        return *this;
+    }
+    friend TLWElvl1 operator+(const TLWElvl1& lhs, const TLWElvl1& rhs) {
+        return TLWElvl1(lhs) += rhs;
+    }
+    friend TLWElvl1 operator-(const TLWElvl1& lhs, const TLWElvl1& rhs) {
+        return TLWElvl1(lhs) -= rhs;
     }
 };

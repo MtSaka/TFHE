@@ -18,6 +18,7 @@ struct TRLWE {
 
    public:
     TRLWE() : data({}) {}
+    TRLWE(const TRLWE& trlwe) : data(trlwe.data) {}
     Poly<Torus, N()>& operator[](std::size_t i) noexcept { return data[i]; }
     Poly<Torus, N()> operator[](std::size_t i) const noexcept { return data[i]; }
     Poly<Torus, N()>& a(std::size_t i) noexcept { return (*this)[i + 1]; }
@@ -55,6 +56,12 @@ struct TRLWE {
         }
         return encrypt(s, t, rng);
     }
+    static constexpr TRLWE trivial_encrypt(const Poly<Torus, N()>& m) {
+        TRLWE trlwe;
+        for (std::size_t i = 0; i < k(); ++i) trlwe.a(i) = {};
+        trlwe.b() = m;
+        return trlwe;
+    }
     template <RandGen Gen>
     static TRLWE encrypt_zero(const SecretKey<Parameter>& s, Gen& rng) {
         Poly<Torus, N()> m = {};
@@ -75,6 +82,29 @@ struct TRLWE {
         }
         return m;
     }
+    TRLWE shift(std::size_t j) const {
+        TRLWE res;
+        for (std::size_t i = 0; i < k() + 1; ++i) res[i] = data[i].mult_pow_x_k(j);
+        return res;
+    }
+    TRLWE& operator+=(const TRLWE& rhs) {
+        for (std::size_t i = 0; i < k() + 1; ++i) {
+            (*this)[i] += rhs[i];
+        }
+        return *this;
+    }
+    TRLWE& operator-=(const TRLWE& rhs) {
+        for (std::size_t i = 0; i < k() + 1; ++i) {
+            (*this)[i] -= rhs[i];
+        }
+        return *this;
+    }
+    friend TRLWE operator+(const TRLWE& lhs, const TRLWE& rhs) {
+        return TRLWE(lhs) += rhs;
+    }
+    friend TRLWE operator-(const TRLWE& lhs, const TRLWE& rhs) {
+        return TRLWE(lhs) -= rhs;
+    }
 };
 
 template <class Parameter>
@@ -85,7 +115,7 @@ TLWElvl1<Parameter> sample_extract_index(const TRLWE<Parameter>& trlwe, std::siz
         for (std::size_t i = 0; i <= index; ++i) {
             tlwe.a(j, i) = trlwe.a(j, index - i);
         }
-        for (std::size_t i = index + 1; index < Parameter::N; ++i) {
+        for (std::size_t i = index + 1; i < Parameter::N; ++i) {
             tlwe.a(j, i) = -trlwe.a(j, Parameter::N + index - i);
         }
     }

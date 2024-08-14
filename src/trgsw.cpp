@@ -27,14 +27,14 @@ struct TRGSW {
         for (std::size_t i = 0; i < k(); ++i) {
             for (std::size_t j = 0; j < l(); ++j) {
                 for (std::size_t k = 0; k < N(); ++k) {
-                    Torus t = static_cast<Torus>(mu[k] * (1u << (bit_width - (j + 1) * Parameter::Bgbit)));
+                    Torus t = static_cast<Torus>(mu[k]) * (1u << (bit_width - (j + 1) * Parameter::Bgbit));
                     trgsw[i * l() + j].a(i, k) += t;
                 }
             }
         }
         for (std::size_t i = 0; i < l(); ++i) {
             for (std::size_t j = 0; j < N(); ++j) {
-                Torus t = static_cast<Torus>(mu[j] * (1u << (bit_width - (i + 1) * Parameter::Bgbit)));
+                Torus t = static_cast<Torus>(mu[j]) * (1u << (bit_width - (i + 1) * Parameter::Bgbit));
                 trgsw[k() * l() + i].b(j) += t;
             }
         }
@@ -56,7 +56,7 @@ struct TRGSW {
 
 template <class Parameter>
 std::array<Poly<int, Parameter::N>, Parameter::l> decompose(const Poly<Torus, Parameter::N>& a) {
-    static constexpr uint32_t bit_width = std::numeric_limits<int>::digits;
+    static constexpr uint32_t bit_width = 32;  // std::numeric_limits<int>::digits;
     int round_offset = 1 << (bit_width - Parameter::l * Parameter::Bgbit - 1);
     std::array<Poly<int, Parameter::N>, Parameter::l> a_bar = {};
     for (int i = Parameter::l - 1; i >= 0; --i) {
@@ -107,18 +107,6 @@ TRLWE<Parameter> external_product(const TRGSW<Parameter>& trgsw, const TRLWE<Par
 template <class Parameter>
 TRLWE<Parameter> cmux(const TRGSW<Parameter>& cond, const TRLWE<Parameter>& thn, const TRLWE<Parameter>& els) {
     const TRLWE<Parameter>&trlwe0 = els, trlwe1 = thn;
-
-    TRLWE<Parameter> tmp;
-    for (std::size_t i = 0; i < Parameter::k; ++i) {
-        tmp.a(i) = trlwe1.a(i) - trlwe0.a(i);
-    }
-    tmp.b() = trlwe1.b() - trlwe0.b();
-
-    TRLWE<Parameter> res = external_product(cond, tmp);
-    for (std::size_t i = 0; i < Parameter::k; ++i) {
-        res.a(i) += trlwe0.a(i);
-    }
-    res.b() += trlwe0.b();
-
+    TRLWE<Parameter> res = external_product(cond, trlwe1 - trlwe0) + trlwe0;
     return res;
 }
