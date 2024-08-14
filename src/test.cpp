@@ -4,6 +4,7 @@
 #include "trlwe.cpp"
 #include "trgsw.cpp"
 #include "bootstrapping.cpp"
+#include "homnand.cpp"
 #include <iostream>
 
 template <typename Parameter>
@@ -89,10 +90,6 @@ void test_blind_rotate(unsigned int seed, const SecretKey<Parameter>& s, const B
     {
         std::binomial_distribution<> dist;
         bool m = dist(rng);
-        //auto trlwe = test_vector<Parameter>();
-        //trlwe=trlwe.shift(513);
-        //trlwe = trlwe.shift(2);
-        //trlwe = trlwe.shift(512);
         auto tlwe = TLWElvl0<Parameter>::encrypt(s, m, rng);
         TLWElvl1<Parameter> res_tlwe = gate_bootstrapping_tlwe_to_tlwe(tlwe, bk);
         bool m_ = res_tlwe.decrypt_bool(s);
@@ -100,9 +97,41 @@ void test_blind_rotate(unsigned int seed, const SecretKey<Parameter>& s, const B
         assert(m == m_);
     }
 }
+
+template <class Parameter>
+void test_identity_key_switch(unsigned int seed, const SecretKey<Parameter>& s) {
+    std::default_random_engine rng{seed};
+    {
+        std::binomial_distribution<> dist;
+        bool m = dist(rng);
+        KeySwitchKey ks = KeySwitchKey{s, rng};
+        TLWElvl1<Parameter> tlwe1 = TLWElvl1<Parameter>::encrypt(s, m, rng);
+        TLWElvl0<Parameter> tlwe0 = identity_key_switch(tlwe1, ks);
+        bool m_ = tlwe0.decrypt_bool(s);
+        std::cerr << m << " " << m_ << std::endl;
+        assert(m == m_);
+    }
+}
+
+template <class Parameter>
+void test_hom_nand(unsigned int seed, const SecretKey<Parameter>& s, const BootstrappingKey<Parameter>& bk) {
+    std::default_random_engine rng{seed};
+    {
+        std::binomial_distribution<> dist;
+        bool x = dist(rng), y = dist(rng);
+        KeySwitchKey ks = KeySwitchKey{s, rng};
+        TLWElvl0<Parameter> tlwex = TLWElvl0<Parameter>::encrypt(s, x, rng);
+        TLWElvl0<Parameter> tlwey = TLWElvl0<Parameter>::encrypt(s, y, rng);
+        TLWElvl0<Parameter> tlwexy = hom_nand(tlwex, tlwey, bk, ks);
+        bool xy = tlwexy.decrypt_bool(s);
+        std::cerr << x << " " << y << " " << xy << std::endl;
+        assert((!(x & y)) == xy);
+    }
+}
+
 int main() {
     using P = param::Security128bit;
-    const int n = 2, m = 2;
+    const int n = 4, m = 2;
     /*
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
@@ -156,9 +185,7 @@ int main() {
             unsigned int seed = std::random_device{}();
             test_cmux<P>(seed, key);
         }
-    }*/
-
-
+    }
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
         SecretKey<P> key;
@@ -172,6 +199,36 @@ int main() {
         for (int j = 0; j < m; ++j) {
             unsigned int seed = std::random_device{}();
             test_blind_rotate<P>(seed, key, bk);
+        }
+    }*/
+
+    /*
+    for (int i = 0; i < n; ++i) {
+        std::cerr << i << std::endl;
+        SecretKey<P> key;
+        {
+            unsigned seed = std::random_device{}();
+            std::default_random_engine rng{seed};
+            key = SecretKey<P>{rng};
+        }
+        for (int j = 0; j < m; ++j) {
+            unsigned int seed = std::random_device{}();
+            test_identity_key_switch<P>(seed, key);
+        }
+    }*/
+    for (int i = 0; i < n; ++i) {
+        std::cerr << i << std::endl;
+        SecretKey<P> key;
+        BootstrappingKey<P> bk;
+        {
+            unsigned seed = std::random_device{}();
+            std::default_random_engine rng{seed};
+            key = SecretKey<P>{rng};
+            bk = BootstrappingKey<P>{key, rng};
+        }
+        for (int j = 0; j < m; ++j) {
+            unsigned int seed = std::random_device{}();
+            test_hom_nand<P>(seed, key, bk);
         }
     }
 

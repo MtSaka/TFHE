@@ -4,7 +4,6 @@
 #include "param.hpp"
 #include "tlwe.cpp"
 #include "poly.hpp"
-#include <iostream>
 
 template <class Parameter>
 struct TRLWE {

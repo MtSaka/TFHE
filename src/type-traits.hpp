@@ -39,7 +39,7 @@ using signed_type_t = int_least_t<std::numeric_limits<T>::digits>;
 
 using Torus16 = uint16_t;
 using Torus = uint32_t;
-Torus16 torus_to_torus16(Torus a) { return static_cast<Torus16>(a >> 16); }
+Torus16 torus_to_torus16(Torus a) { return static_cast<Torus16>(((a + (1 << 15)) >> 16)); }
 
 template <typename G>
 concept RandGen = std::uniform_random_bit_generator<G>;

@@ -57,7 +57,7 @@ struct TRGSW {
 template <class Parameter>
 std::array<Poly<int, Parameter::N>, Parameter::l> decompose(const Poly<Torus, Parameter::N>& a) {
     static constexpr uint32_t bit_width = 32;  // std::numeric_limits<int>::digits;
-    int round_offset = 1 << (bit_width - Parameter::l * Parameter::Bgbit - 1);
+    static constexpr int round_offset = 1 << (bit_width - Parameter::l * Parameter::Bgbit - 1);
     std::array<Poly<int, Parameter::N>, Parameter::l> a_bar = {};
     for (int i = Parameter::l - 1; i >= 0; --i) {
         for (std::size_t j = 0; j < Parameter::N; ++j) {

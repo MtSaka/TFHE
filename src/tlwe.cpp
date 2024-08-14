@@ -7,7 +7,6 @@
 
 #include <array>
 #include <assert.h>
-#include <concepts>
 
 template <class Parameter>
 struct SecretKey {
@@ -52,16 +51,16 @@ struct TLWElvl0 {
     Torus16 b() const noexcept { return (*this)[0]; }
     template <RandGen Gen>
     static TLWElvl0 encrypt(const SecretKey<Parameter>& s, const Torus16& m, Gen& rng) {
-        TLWElvl0 TLWElvl0;
+        TLWElvl0 tlwe;
         for (std::size_t i = 0; i < n(); ++i) {
-            TLWElvl0.a(i) = uniform_torus16_gen(rng);
+            tlwe.a(i) = uniform_torus16_gen(rng);
         }
         Torus16 e = normal_torus16_gen(alpha(), rng);
-        TLWElvl0.b() = m + e;
+        tlwe.b() = m + e;
         for (std::size_t i = 0; i < n(); ++i) {
-            TLWElvl0.b() += TLWElvl0.a(i) * s.get_lvl0(i);
+            tlwe.b() += tlwe.a(i) * s.get_lvl0(i);
         }
-        return TLWElvl0;
+        return tlwe;
     }
     template <RandGen Gen>
     static TLWElvl0 encrypt(const SecretKey<Parameter>& s, bool m, Gen& rng) {
@@ -80,13 +79,13 @@ struct TLWElvl0 {
     }
     TLWElvl0& operator+=(const TLWElvl0& rhs) {
         for (std::size_t i = 0; i < n() + 1; ++i) {
-            this->data[i] += rhs[i];
+            (*this)[i] += rhs[i];
         }
         return *this;
     }
     TLWElvl0& operator-=(const TLWElvl0& rhs) {
         for (std::size_t i = 0; i < n() + 1; ++i) {
-            this->data[i] -= rhs[i];
+            (*this)[i] -= rhs[i];
         }
         return *this;
     }
@@ -177,3 +176,51 @@ struct TLWElvl1 {
         return TLWElvl1(lhs) -= rhs;
     }
 };
+
+template <class Parameter>
+struct KeySwitchKey {
+   private:
+    std::array<TLWElvl0<Parameter>, Parameter::kN * Parameter::t * (1 << (Parameter::basebit - 1))> data;
+
+   public:
+    TLWElvl0<Parameter>& operator()(std::size_t i, std::size_t j, std::size_t k) {
+        return data[(i * Parameter::t + j) * (1 << (Parameter::basebit - 1)) + k];
+    }
+    TLWElvl0<Parameter> operator()(std::size_t i, std::size_t j, std::size_t k) const {
+        return data[(i * Parameter::t + j) * (1 << (Parameter::basebit - 1)) + k];
+    }
+    template <RandGen Gen>
+    KeySwitchKey(const SecretKey<Parameter>& s, Gen& rng) {
+        static constexpr std::size_t bit_width = std::numeric_limits<Torus>::digits;
+        for (std::size_t i = 0; i < Parameter::kN; ++i) {
+            for (std::size_t j = 0; j < Parameter::t; ++j) {
+                for (std::size_t k = 1; k <= (1 << (Parameter::basebit - 1)); ++k) {
+                    Torus t = static_cast<Torus>(k * s.get_lvl1(i / Parameter::N, i % Parameter::N) * (1u << (bit_width - (j + 1) * Parameter::basebit)));
+                    (*this)(i, j, k - 1) = TLWElvl0<Parameter>::encrypt(s, torus_to_torus16(t), rng);
+                }
+            }
+        }
+    }
+};
+template <class Parameter>
+TLWElvl0<Parameter> identity_key_switch(const TLWElvl1<Parameter>& tlwe, const KeySwitchKey<Parameter>& ks) {
+    std::array<std::array<int, Parameter::t>, Parameter::kN> a_bar = {};
+    TLWElvl0<Parameter> res = {};
+    res.b() = torus_to_torus16(tlwe.b());
+    static constexpr Torus round_offset = 1 << (32 - (1 + Parameter::basebit * Parameter::t));
+    for (std::size_t i = 0; i < Parameter::kN; ++i) {
+        for (std::size_t j = Parameter::t; j-- > 0;) {
+            a_bar[i][j] += (tlwe.a(i / Parameter::N, i % Parameter::N) + round_offset) >> (32 - (j + 1) * Parameter::basebit) & ((1 << Parameter::basebit) - 1);
+            if (a_bar[i][j] >= 1 << (Parameter::basebit - 1)) {
+                a_bar[i][j] -= 1 << (Parameter::basebit);
+                if (j > 0) a_bar[i][j - 1]++;
+            }
+            const std::size_t k = abs(a_bar[i][j]);
+            if (a_bar[i][j] > 0)
+                res -= ks(i, j, k - 1);
+            else if (a_bar[i][j] < 0)
+                res += ks(i, j, k - 1);
+        }
+    }
+    return res;
+}
