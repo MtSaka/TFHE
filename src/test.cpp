@@ -6,6 +6,7 @@
 #include "bootstrapping.cpp"
 #include "gate.cpp"
 #include <iostream>
+#include <cassert>
 
 template <typename Parameter>
 void test_tlwe(unsigned int seed, const SecretKey<Parameter>& s) {
@@ -148,6 +149,7 @@ void test_hom_mux(unsigned int seed, const SecretKey<Parameter>& s, const Bootst
         assert((z ? x : y) == mux);
     }
 }
+double sum = 0;
 template <class Parameter>
 void test_gates(unsigned int seed, const SecretKey<Parameter>& s, const BootstrappingKey<Parameter>& bk) {
     std::default_random_engine rng{seed};
@@ -158,11 +160,15 @@ void test_gates(unsigned int seed, const SecretKey<Parameter>& s, const Bootstra
         TLWElvl0<Parameter> tlwex = TLWElvl0<Parameter>::encrypt(s, x, rng);
         TLWElvl0<Parameter> tlwey = TLWElvl0<Parameter>::encrypt(s, y, rng);
         {
+            clock_t start = clock();
             TLWElvl0<Parameter> tlwenand;
             hom_nand(tlwenand, tlwex, tlwey, bk, *ks);
             bool xynand = tlwenand.decrypt_bool(s);
             assert((!(x && y)) == xynand);
-        }
+            clock_t end = clock();
+            double t = static_cast<double>(end - start) / CLOCKS_PER_SEC * 1000.0;
+            sum += t;
+        }/*
         {
             TLWElvl0<Parameter> tlweor;
             hom_or(tlweor, tlwex, tlwey, bk, *ks);
@@ -192,119 +198,15 @@ void test_gates(unsigned int seed, const SecretKey<Parameter>& s, const Bootstra
             hom_xnor(tlwexnor, tlwex, tlwey, bk, *ks);
             bool xyxnor = tlwexnor.decrypt_bool(s);
             assert((!(x ^ y)) == xyxnor);
-        }
+        }*/
     }
 }
 
 int main() {
     using P = param::Security128bit;
-    const int n = 4, m = 4;
+    static constexpr int n = 10, m = 20;
     std::cerr << n << " " << m << std::endl;
-    /*
-    for (int i = 0; i < n; ++i) {
-        std::cerr << i << std::endl;
-        SecretKey<P> key;
-        {
-            unsigned int seed = std::random_device{}();
-            std::default_random_engine rng{seed};
-            key = SecretKey<P>{rng};
-        }
-        for (int j = 0; j < m; ++j) {
-            unsigned int seed = std::random_device{}();
-            test_tlwe<P>(seed, key);
-        }
-    }
-    for (int i = 0; i < n; ++i) {
-        std::cerr << i << std::endl;
-        SecretKey<P> key;
-        {
-            unsigned seed = std::random_device{}();
-            std::default_random_engine rng{seed};
-            key = SecretKey<P>{rng};
-        }
-        for (int j = 0; j < m; ++j) {
-            unsigned int seed = std::random_device{}();
-            test_trlwe<P>(seed, key);
-        }
-    }*/
-    /*
-     double sum = 0;
-     for (int i = 0; i < n; ++i) {
-         std::cerr << i << std::endl;
-         SecretKey<P> key;
-         {
-             unsigned seed = std::random_device{}();
-             std::default_random_engine rng{seed};
-             key = SecretKey<P>{rng};
-         }
-         for (int j = 0; j < m; ++j) {
-             clock_t start = clock();
-             unsigned int seed = std::random_device{}();
-             test_external_product<P>(seed, key);
-             clock_t end = clock();
-             double t = static_cast<double>(end - start) / CLOCKS_PER_SEC * 1000.0;
-             std::cerr << t << std::endl;
-             sum += t;
-         }
-     }
-     double sum = 0;
-     for (int i = 0; i < n; ++i) {
-         std::cerr << i << std::endl;
-         SecretKey<P> key;
-         {
-             unsigned seed = std::random_device{}();
-             std::default_random_engine rng{seed};
-             key = SecretKey<P>{rng};
-         }
-         for (int j = 0; j < m; ++j) {
-             clock_t start = clock();
-             unsigned int seed = std::random_device{}();
-             test_cmux<P>(seed, key);
-             clock_t end = clock();
-             double t = static_cast<double>(end - start) / CLOCKS_PER_SEC * 1000.0;
-             std::cerr << t << std::endl;
-             sum += t;
-         }
-     }
-     /*
-    double sum = 0;
-    for (int i = 0; i < n; ++i) {
-        std::cerr << i << std::endl;
-        SecretKey<P> key;
-        BootstrappingKey<P> bk;
-        {
-            unsigned seed = std::random_device{}();
-            std::default_random_engine rng{seed};
-            key = SecretKey<P>{rng};
-            bk = BootstrappingKey<P>{key, rng};
-        }
-        for (int j = 0; j < m; ++j) {
-            clock_t start = clock();
-            unsigned int seed = std::random_device{}();
-            test_blind_rotate<P>(seed, key, bk);
-            clock_t end = clock();
-            double t = static_cast<double>(end - start) / CLOCKS_PER_SEC * 1000.0;
-            std::cerr << t << std::endl;
-            sum += t;
-        }
-    }
-
-    /*
-    for (int i = 0; i < n; ++i) {
-        std::cerr << i << std::endl;
-        SecretKey<P> key;
-        {
-            unsigned seed = std::random_device{}();
-            std::default_random_engine rng{seed};
-            key = SecretKey<P>{rng};
-        }
-        for (int j = 0; j < m; ++j) {
-            unsigned int seed = std::random_device{}();
-            test_identity_key_switch<P>(seed, key);
-        }
-    }*/
-    ProfilerStart("test.prof");
-    double sum = 0;
+    //ProfilerStart("test.prof");
     for (int i = 0; i < n; ++i) {
         std::cerr << i << std::endl;
         SecretKey<P> key;
@@ -315,19 +217,16 @@ int main() {
         std::cerr << "finished Bootstarpping" << std::endl;
 
         for (int j = 0; j < m; ++j) {
-            clock_t start = clock();
+            //clock_t start = clock();
             unsigned int seed = std::random_device{}();
             test_gates<P>(seed, key, *bk);
-            test_hom_mux<P>(seed, key, *bk);
-            clock_t end = clock();
-            double t = static_cast<double>(end - start) / CLOCKS_PER_SEC * 1000.0;
-            std::cerr << t << std::endl;
-            sum += t;
+            //test_hom_mux<P>(seed, key, *bk);
+            //clock_t end = clock();
+            //double t = static_cast<double>(end - start) / CLOCKS_PER_SEC * 1000.0;
+            //std::cerr << t << std::endl;
         }
     }
-    ProfilerStop();
+    //ProfilerStop();
     std::cerr << sum / (n * m) << std::endl;
-    // std::cerr << (double)ntt_intt_cnt / (n * m) << std::endl;
-    //  std::cerr << msb(1024) << std::endl;
     std::cout << "PASS" << std::endl;
 }
