@@ -20,32 +20,34 @@ struct Poly : std::array<T, sz> {
         return *this;
     }
     Poly& operator*=(const Poly<int, sz>& rhs) {
-        std::array<ModInt, sz << 1> a = {}, b = {};
+        std::array<ModInt, sz> a = {}, b = {};
         for (std::size_t i = 0; i < sz; ++i) {
             a[i] = ModInt((*this)[i]), b[i] = ModInt(rhs[i]);
         }
         ntt(a), ntt(b);
-        for (std::size_t i = 0; i < (sz << 1); ++i) {
+        for (std::size_t i = 0; i < sz; ++i) {
             a[i] *= b[i];
         }
         intt(a);
         for (std::size_t i = 0; i < sz; ++i) {
-            (*this)[i] = static_cast<T>(static_cast<T>(a[i].get()) - static_cast<T>(a[i + sz].get()));
+            const uint64_t tmp = a[i].get();
+            (*this)[i] = static_cast<T>(tmp >= (1ull << 61) ? -static_cast<T>(ModInt::get_mod() - tmp) : tmp);
         }
         return *this;
     }
-    Poly& operator*=(const std::array<ModInt, sz << 1>& rhs) {
-        std::array<ModInt, sz << 1> a = {};
+    Poly& operator*=(const std::array<ModInt, sz>& rhs) {
+        std::array<ModInt, sz> a = {};
         for (std::size_t i = 0; i < sz; ++i) {
             a[i] = ModInt((*this)[i]);
         }
         ntt(a);
-        for (std::size_t i = 0; i < (sz << 1); ++i) {
+        for (std::size_t i = 0; i < sz; ++i) {
             a[i] *= rhs[i];
         }
         intt(a);
         for (std::size_t i = 0; i < sz; ++i) {
-            (*this)[i] = static_cast<T>(static_cast<T>(a[i].get()) - static_cast<T>(a[i + sz].get()));
+            const uint64_t tmp = a[i].get();
+            (*this)[i] = static_cast<T>(tmp >= (1ull << 61) ? -static_cast<T>(ModInt::get_mod() - tmp) : tmp);
         }
         return *this;
     }
@@ -58,7 +60,7 @@ struct Poly : std::array<T, sz> {
     friend Poly<T, sz> operator*(const Poly<T, sz>& lhs, const Poly<int, sz>& rhs) {
         return Poly(lhs) *= rhs;
     }
-    friend Poly<T, sz> operator*(const Poly<T, sz>& lhs, const std::array<ModInt, sz << 1>& rhs) {
+    friend Poly<T, sz> operator*(const Poly<T, sz>& lhs, const std::array<ModInt, sz>& rhs) {
         return Poly(lhs) *= rhs;
     }
     void mult_pow_x_k(Poly<T, sz>& res, std::size_t k) const {
@@ -79,14 +81,14 @@ struct Poly : std::array<T, sz> {
             }
         }
     }
-    void transform(std::array<ModInt, sz << 1>& a) const {
+    void transform(std::array<ModInt, sz>& a) const {
         a = {};
         for (std::size_t i = 0; i < sz; ++i) a[i] = (*this)[i];
         ntt(a);
         return;
     }
-    std::array<ModInt, sz << 1> transformed() const {
-        std::array<ModInt, sz << 1> a = {};
+    std::array<ModInt, sz> transformed() const {
+        std::array<ModInt, sz> a = {};
         for (std::size_t i = 0; i < sz; ++i) a[i] = (*this)[i];
         ntt(a);
         return a;

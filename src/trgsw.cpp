@@ -72,8 +72,10 @@ void decompose(std::array<Poly<int, Parameter::N>, Parameter::l>& a_bar, const P
 
 template <class Parameter>
 void external_product(TRLWE<Parameter>& res, const TRGSW<Parameter>& trgsw, const TRLWE<Parameter>& trlwe) {
-    std::array<std::array<std::array<ModInt, Parameter::N << 1>, Parameter::l>, Parameter::k> dec_a;
-    std::array<std::array<ModInt, Parameter::N << 1>, Parameter::l> dec_b;
+    std::array<std::array<std::array<ModInt, Parameter::N>, Parameter::l>, Parameter::k> dec_a;
+    std::array<std::array<ModInt, Parameter::N>, Parameter::l> dec_b;
+    std::array<std::array<ModInt, Parameter::N>, Parameter::k> ntt_a;
+    std::array<ModInt, Parameter::N> ntt_b;
     for (std::size_t i = 0; i < Parameter::k; ++i) {
         std::array<Poly<int, Parameter::N>, Parameter::l> dec_a_tmp;
         decompose<Parameter>(dec_a_tmp, trlwe.a(i));
@@ -90,25 +92,31 @@ void external_product(TRLWE<Parameter>& res, const TRGSW<Parameter>& trgsw, cons
     }
 
     for (std::size_t i = 0; i < Parameter::k; ++i) {
-        res.a(i) = {};
-    }
-    res.b() = {};
-
-    for (std::size_t i = 0; i < Parameter::k; ++i) {
         for (std::size_t j = 0; j < Parameter::l; ++j) {
             for (std::size_t k = 0; k < Parameter::k; ++k) {
-                res.a(k) += trgsw[i * Parameter::l + j].a(k) * dec_a[i][j];
+                add(ntt_a[k], trgsw[i * Parameter::l + j].a(k).transformed() * dec_a[i][j]);
             }
-            res.b() += trgsw[i * Parameter::l + j].b() * dec_a[i][j];
+            add(ntt_b, trgsw[i * Parameter::l + j].b().transformed() * dec_a[i][j]);
         }
     }
     for (std::size_t i = 0; i < Parameter::l; ++i) {
         for (std::size_t j = 0; j < Parameter::k; ++j) {
-            res.a(j) += trgsw[Parameter::k * Parameter::l + i].a(j) * dec_b[i];
+            add(ntt_a[j], trgsw[Parameter::k * Parameter::l + i].a(j).transformed() * dec_b[i]);
         }
-        res.b() += trgsw[Parameter::k * Parameter::l + i].b() * dec_b[i];
+        add(ntt_b, trgsw[Parameter::k * Parameter::l + i].b().transformed() * dec_b[i]);
     }
-
+    for (std::size_t i = 0; i < Parameter::k; ++i) {
+        intt(ntt_a[i]);
+        for (std::size_t j = 0; j < Parameter::N; ++j) {
+            const uint64_t now = ntt_a[i][j].get();
+            res.a(i, j) = static_cast<Torus>(now >= (1ull << 61) ? -static_cast<Torus>(ModInt::get_mod() - now) : now);
+        }
+    }
+    intt(ntt_b);
+    for (std::size_t i = 0; i < Parameter::N; ++i) {
+        const uint64_t now = ntt_b[i].get();
+        res.b(i) = static_cast<Torus>(now >= (1ull << 61) ? -static_cast<Torus>(ModInt::get_mod() - now) : now);
+    }
 }
 
 template <class Parameter>

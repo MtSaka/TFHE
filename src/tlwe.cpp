@@ -13,7 +13,7 @@ struct SecretKey {
    private:
     std::array<int, Parameter::n> lvl0;
     std::array<Poly<int, Parameter::N>, Parameter::k> lvl1;
-    std::array<std::array<ModInt, Parameter::N << 1>, Parameter::k> transformed_lvl1;
+    std::array<std::array<ModInt, Parameter::N>, Parameter::k> transformed_lvl1;
 
    public:
     SecretKey() {}
@@ -31,11 +31,11 @@ struct SecretKey {
     }
     int& get_lvl0(std::size_t i) { return lvl0[i]; }
     int get_lvl0(std::size_t i) const { return lvl0[i]; }
-    Poly<int, Parameter::N>& get_lvl1(std::size_t i) { return lvl1[i]; }
+    const Poly<int, Parameter::N>& get_lvl1(std::size_t i) { return lvl1[i]; }
     Poly<int, Parameter::N> get_lvl1(std::size_t i) const { return lvl1[i]; }
     int& get_lvl1(std::size_t i, std::size_t j) { return lvl1[i][j]; }
     int get_lvl1(std::size_t i, std::size_t j) const { return lvl1[i][j]; }
-    const std::array<ModInt, Parameter::N << 1>& get_transformed_lvl1(std::size_t i) const { return transformed_lvl1[i]; }
+    const std::array<ModInt, Parameter::N>& get_transformed_lvl1(std::size_t i) const { return transformed_lvl1[i]; }
 };
 
 template <class Parameter>
@@ -201,11 +201,44 @@ struct TLWElvl1 {
         b() -= rhs.b();
         return *this;
     }
+    TLWElvl1& operator+=(const Torus& rhs) {
+        (*this).b() += rhs;
+        return *this;
+    }
+    TLWElvl1& operator-=(const Torus& rhs) {
+        (*this).b() -= rhs;
+        return *this;
+    }
     friend TLWElvl1 operator+(const TLWElvl1& lhs, const TLWElvl1& rhs) {
         return TLWElvl1(lhs) += rhs;
     }
     friend TLWElvl1 operator-(const TLWElvl1& lhs, const TLWElvl1& rhs) {
         return TLWElvl1(lhs) -= rhs;
+    }
+    friend TLWElvl1 operator+(const TLWElvl1& lhs, const Torus& rhs) {
+        return TLWElvl1(lhs) += rhs;
+    }
+    friend TLWElvl1 operator-(const TLWElvl1& lhs, const Torus& rhs) {
+        return TLWElvl1(lhs) -= rhs;
+    }
+    TLWElvl1 operator-() const {
+        TLWElvl1 res;
+        for (std::size_t i = 0; i < k(); ++i) {
+            for (std::size_t j = 0; j < N(); ++j) {
+                res[i][j] = -(*this)[i][j];
+            }
+        }
+        res.datab = -(*this).b();
+        return res;
+    }
+    TLWElvl1& operator*=(const int& rhs) {
+        for (std::size_t i = 0; i < k(); ++i) {
+            for (std::size_t j = 0; j < N(); ++j) {
+                (*this)[i][j] *= rhs;
+            }
+        }
+        (*this).b() *= rhs;
+        return *this;
     }
 };
 

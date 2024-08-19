@@ -1,5 +1,6 @@
 #pragma once
 #include "type-traits.hpp"
+
 namespace modint_impl {
 using T = uint64_t;
 
@@ -156,9 +157,12 @@ struct NthRoot {
    private:
     static constexpr unsigned int lg = 10;
     std::array<ModInt, lg + 1> root, inv_root;
+    std::array<ModInt, 1 << (lg - 1)> nth_root, inv_nth_root;
     static constexpr ModInt primitive_root = ModInt::raw(5);
 
    public:
+    std::array<ModInt, lg - 1> rate2, inv_rate2;
+    std::array<ModInt, lg - 2> rate3, inv_rate3;
     constexpr NthRoot() : root{}, inv_root{} {
         root[lg] = primitive_root.pow((ModInt::get_mod() - 1) >> lg);
         inv_root[lg] = root[lg].pow(ModInt::get_mod() - 2);
@@ -166,101 +170,118 @@ struct NthRoot {
             root[i] = root[i + 1] * root[i + 1];
             inv_root[i] = inv_root[i + 1] * inv_root[i + 1];
         }
-    }
-    static constexpr unsigned int get_lg() { return lg; }
-    constexpr ModInt get(int n) const { return root[n]; }
-    constexpr ModInt inv(int n) const { return inv_root[n]; }
-};
-struct NthRoot1 {
-   private:
-    static constexpr unsigned int lg = 10;
-    std::array<ModInt, lg + 1> root, inv_root;
-    static constexpr ModInt primitive_root = ModInt(7);
-
-   public:
-    constexpr NthRoot1() : root{}, inv_root{} {
-        root[lg] = primitive_root.pow((ModInt::get_mod() - 1) >> lg);
-        inv_root[lg] = root[lg].pow(ModInt::get_mod() - 2);
-        for (int i = lg - 1; i >= 0; --i) {
-            root[i] = root[i + 1] * root[i + 1];
-            inv_root[i] = inv_root[i + 1] * inv_root[i + 1];
+        {
+            ModInt z = 1;
+            for (int i = 0; i < (1 << (lg - 1)); ++i) {
+                nth_root[i] = z;
+                z *= root[lg];
+            }
+            z = 1;
+            const ModInt iv = ModInt(1) / (1 << (lg - 1));
+            for (int i = 0; i < (1 << (lg - 1)); ++i) {
+                inv_nth_root[i] = z * iv;
+                z *= inv_root[lg];
+            }
+        }
+        {
+            ModInt prod = 1, iprod = 1;
+            for (int i = 0; i <= lg - 2; ++i) {
+                rate2[i] = root[i + 2] * prod;
+                inv_rate2[i] = inv_root[i + 2] * iprod;
+                prod *= inv_root[i + 2];
+                iprod *= root[i + 2];
+            }
+        }
+        {
+            ModInt prod = 1, iprod = 1;
+            for (int i = 0; i <= lg - 3; ++i) {
+                rate3[i] = root[i + 3] * prod;
+                inv_rate3[i] = inv_root[i + 3] * iprod;
+                prod *= inv_root[i + 3];
+                iprod *= root[i + 3];
+            }
         }
     }
     static constexpr unsigned int get_lg() { return lg; }
     constexpr ModInt get(int n) const { return root[n]; }
     constexpr ModInt inv(int n) const { return inv_root[n]; }
+    constexpr ModInt nth(int n) const { return nth_root[n]; }
+    constexpr ModInt nth_inv(int n) const { return inv_nth_root[n]; }
 };
 constexpr NthRoot nth_root;
 
+int ntt_cnt = 0, intt_cnt = 0;
 template <std::size_t sz>
 void ntt(std::array<ModInt, sz>& a) {
-    static constexpr int lg = 10;
+    ntt_cnt++;
+    static constexpr int lg = 9;
     static constexpr ModInt im = nth_root.get(2);
-    for (std::size_t i = lg; i >= 1; i -= 2) {
+    for (std::size_t i = 0; i < sz; ++i) {
+        a[i] *= nth_root.nth(i);
+    }
+    for (int i = lg; i >= 1; i -= 2) {
         if (i == 1) {
-            const ModInt w = nth_root.get(i);
+            ModInt z = 1;
             for (std::size_t j = 0; j < sz; j += (1u << i)) {
-                ModInt z = ModInt(1);
                 for (std::size_t k = j; k < j + (1u << (i - 1)); ++k) {
-                    const ModInt x = a[k], y = a[k + (1u << (i - 1))];
-                    a[k] = x + y, a[k + (1u << (i - 1))] = (x - y) * z;
-                    z *= w;
+                    const ModInt x = a[k], y = a[k + (1u << (i - 1))] * z;
+                    a[k] = x + y, a[k + (1u << (i - 1))] = (x - y);
                 }
+                z *= nth_root.rate2[std::countr_zero(~(unsigned int)(j >> i))];
             }
         } else {
-            const ModInt w = nth_root.get(i);
             const std::size_t offset = 1 << (i - 2);
+            ModInt z = ModInt(1);
             for (std::size_t j = 0; j < sz; j += (1u << i)) {
-                ModInt z = ModInt(1);
                 for (std::size_t k = j; k < j + (1u << (i - 2)); ++k) {
                     const ModInt z2 = z * z, z3 = z2 * z;
-                    const ModInt c0 = a[k], c1 = a[k + offset], c2 = a[k + offset * 2], c3 = a[k + offset * 3];
+                    const ModInt c0 = a[k], c1 = a[k + offset] * z, c2 = a[k + offset * 2] * z2, c3 = a[k + offset * 3] * z3;
                     const ModInt c0c2 = c0 + c2, c0mc2 = c0 - c2, c1c3 = c1 + c3, c1mc3im = (c1 - c3) * im;
                     a[k] = c0c2 + c1c3;
-                    a[k + offset] = (c0c2 - c1c3) * z2;
-                    a[k + offset * 2] = (c0mc2 + c1mc3im) * z;
-                    a[k + offset * 3] = (c0mc2 - c1mc3im) * z3;
-                    z *= w;
+                    a[k + offset] = c0c2 - c1c3;
+                    a[k + offset * 2] = c0mc2 + c1mc3im;
+                    a[k + offset * 3] = c0mc2 - c1mc3im;
                 }
+                z *= nth_root.rate3[std::countr_zero(~(unsigned int)(j >> i))];
             }
         }
     }
 }
 template <std::size_t sz, bool f = true>
 void intt(std::array<ModInt, sz>& a) {
-    static constexpr int lg = 10;
+    intt_cnt++;
+    static constexpr int lg = 9;
     static constexpr ModInt im = nth_root.inv(2);
     for (std::size_t i = 2 - (lg & 1); i <= lg; i += 2) {
         if (i == 1) {
-            const ModInt w = nth_root.inv(i);
+            ModInt z = 1;
             for (std::size_t j = 0; j < sz; j += (1u << i)) {
-                ModInt z = ModInt(1);
                 for (std::size_t k = j; k < j + (1u << (i - 1)); ++k) {
-                    const ModInt x = a[k], y = a[k + (1u << (i - 1))] * z;
-                    a[k] = x + y, a[k + (1u << (i - 1))] = x - y;
-                    z *= w;
+                    const ModInt x = a[k], y = a[k + (1u << (i - 1))];
+                    a[k] = x + y, a[k + (1u << (i - 1))] = (x - y) * z;
                 }
+                z *= nth_root.inv_rate2[std::countr_zero(~(unsigned int)(j >> i))];
             }
         } else {
-            const ModInt w = nth_root.inv(i);
             const std::size_t offset = 1 << (i - 2);
+            ModInt z = 1;
             for (std::size_t j = 0; j < sz; j += (1u << i)) {
-                ModInt z = ModInt(1);
                 for (std::size_t k = j; k < j + (1u << (i - 2)); ++k) {
                     const ModInt z2 = z * z, z3 = z2 * z;
-                    const ModInt c0 = a[k], c1 = a[k + offset] * z2, c2 = a[k + offset * 2] * z, c3 = a[k + offset * 3] * z3;
+                    const ModInt c0 = a[k], c1 = a[k + offset], c2 = a[k + offset * 2], c3 = a[k + offset * 3];
                     const ModInt c0c1 = c0 + c1, c0mc1 = c0 - c1, c2c3 = c2 + c3, c2mc3im = (c2 - c3) * im;
                     a[k] = c0c1 + c2c3;
-                    a[k + offset] = c0mc1 + c2mc3im;
-                    a[k + offset * 2] = c0c1 - c2c3;
-                    a[k + offset * 3] = c0mc1 - c2mc3im;
-                    z *= w;
+                    a[k + offset] = (c0mc1 + c2mc3im) * z;
+                    a[k + offset * 2] = (c0c1 - c2c3) * z2;
+                    a[k + offset * 3] = (c0mc1 - c2mc3im) * z3;
                 }
+                z *= nth_root.inv_rate3[std::countr_zero(~(unsigned int)(j >> i))];
             }
         }
     }
     if constexpr (f) {
-        constexpr ModInt inv_sz = ModInt(1) / sz;
-        for (auto& x : a) x *= inv_sz;
+        for (std::size_t i = 0; i < sz; ++i) {
+            a[i] *= nth_root.nth_inv(i);
+        }
     }
 }
